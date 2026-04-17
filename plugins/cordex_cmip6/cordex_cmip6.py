@@ -153,6 +153,7 @@ class CordexCmip6ProjectCheck(WCRPBaseCheck):
                     "formula_terms",
                     "CV",
                     "1hr",
+                    "3hr",
                     "6hr",
                     "day",
                     "mon",
