@@ -241,7 +241,7 @@ constant = "time"
 
 [coordinates.time.attributes.calendar]
 # Checks TIME003 ATTR001 ATTR002 ATTR003 ATTR004
-severity = "M"
+severity = "H"
 value_type = "str"
 is_required = true
 enum = [
