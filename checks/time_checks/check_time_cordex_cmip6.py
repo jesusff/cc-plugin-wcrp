@@ -39,6 +39,7 @@ def check_time_chunking(CheckerObject, severity=BaseCheck.MEDIUM):
         return [testctx.to_result()]
     if CheckerObject.frequency not in [
         "1hr",
+        "3hr",
         "6hr",
         "day",
         "mon",
@@ -90,7 +91,7 @@ def check_time_chunking(CheckerObject, severity=BaseCheck.MEDIUM):
     expected_start_date = cftime.datetime(
         first_time.year, 1, 1, 0, 0, 0, calendar=CheckerObject.calendar
     )
-    if CheckerObject.frequency in ["1hr", "6hr"]:
+    if CheckerObject.frequency in ["1hr", "3hr", "6hr"]:
         expected_end_date = cftime.datetime(
             first_time.year + 1, 1, 1, 0, 0, 0, calendar=CheckerObject.calendar
         )
@@ -212,6 +213,7 @@ def check_time_range(CheckerObject, severity=BaseCheck.MEDIUM):
         return [testctx.to_result()]
     if CheckerObject.frequency not in [
         "1hr",
+        "3hr",
         "6hr",
         "day",
         "mon",
@@ -251,7 +253,7 @@ def check_time_range(CheckerObject, severity=BaseCheck.MEDIUM):
         time_range = f"{first_time.strftime(format='%4Y%2m')}-{last_time.strftime(format='%4Y%2m')}"
     elif CheckerObject.frequency == "day":
         time_range = f"{first_time.strftime(format='%4Y%2m%2d')}-{last_time.strftime(format='%4Y%2m%2d')}"
-    elif CheckerObject.frequency in ["1hr", "6hr"]:
+    elif CheckerObject.frequency in ["1hr", "3hr", "6hr"]:
         time_range = f"{first_time.strftime(format='%4Y%2m%2d%2H%2M')}-{last_time.strftime(format='%4Y%2m%2d%2H%2M')}"
     else:
         time_range = ""
