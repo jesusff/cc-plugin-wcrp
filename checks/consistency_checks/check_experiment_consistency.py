@@ -20,6 +20,9 @@ CV_COLLECTION_MAP = {
     "cmip7": {
         "experiment_id": "experiment",
     },
+    "cmip6plus": {
+        "experiment_id": "experiment_id",
+    },
 }
 
 

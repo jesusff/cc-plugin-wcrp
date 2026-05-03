@@ -693,6 +693,8 @@ class Cmip7ProjectCheck(WCRPBaseCheck):
 
             # monotonicity
             if rule.monotonicity:
+                if cname not in ds.dimensions:
+                    continue    
                 sev = self.get_severity(rule.monotonicity.severity)
                 res.extend(
                     check_coordinate_monotonicity(

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # =============================================================================
-# WCRP CMIP6 plugin
+# WCRP CMIP6Plus plugin
 # =============================================================================
 
 from __future__ import annotations
@@ -113,16 +113,17 @@ def _load_toml(path: str) -> dict:
         return toml.load(f)
 
 
-class Cmip6ProjectCheck(WCRPBaseCheck):
-    _cc_spec = "wcrp_cmip6"
+class Cmip6PlusProjectCheck(WCRPBaseCheck):
+    _cc_spec = "wcrp_cmip6plus"
     _cc_spec_version = "1.0"
-    _cc_description = "WCRP CMIP6 Project PLugin"
+    _cc_description = "WCRP CMIP6Plus Project Plugin"
     supported_ds = [Dataset]
+
 
     def __init__(self, options=None):
         super().__init__(options)
 
-        self.project_name = "cmip6"
+        self.project_name = "cmip6plus"
         self.config: Optional[WCRPConfig] = None
         self.cfg: dict = {}
 

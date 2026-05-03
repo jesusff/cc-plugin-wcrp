@@ -19,6 +19,8 @@ def _normalize_project_id(project_id: str) -> str:
         return "cmip7"
     if isinstance(project_id, str) and project_id.lower() == "cmip6":
         return "cmip6"
+    if isinstance(project_id, str) and project_id.lower() == "cmip6plus":
+        return "cmip6plus"
     return project_id
 
 

@@ -35,6 +35,7 @@ version = "2.1.0"
 [project.entry-points."compliance_checker.suites"]
 
 plugin_cmip6 = "plugins.cmip6.cmip6:Cmip6ProjectCheck"
+plugin_cmip6plus = "plugins.cmip6plus.cmip6plus:Cmip6PlusProjectCheck"
 plugin_cc6 = "plugins.cordex_cmip6.cordex_cmip6:CordexCmip6ProjectCheck"
 plugin_cmip7 = "plugins.cmip7.cmip7:Cmip7ProjectCheck"
 plugin_data = "plugins.data_plausibility.wcrp_data:DatapluginProjectCheck"

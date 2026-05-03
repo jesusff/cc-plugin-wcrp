@@ -22,6 +22,10 @@ CV_COLLECTION_MAP = {
         "institution_id": "institution",
         "source_id": "source",
     },
+    "cmip6plus": {
+        "institution_id": "institution_id",
+        "source_id": "source_id",
+    },  
 }
 
 
