@@ -328,6 +328,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verify-the-installation" class="md-nav__link">
     <span class="md-ellipsis">
       Verify the installation:
@@ -561,6 +570,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verify-the-installation" class="md-nav__link">
     <span class="md-ellipsis">
       Verify the installation:
@@ -646,15 +664,20 @@ The <strong>cc-plugin-wcrp</strong>  provides plugins that call automated <stron
 <pre><code class="language-bash">pip install -e .
 </code></pre>
 <p><strong>Esgvoc Installation</strong></p>
-<p>Install Esgvoc and Universe to get the Controlled Vocabulary (Mandatory)</p>
-<pre><code class="language-bash">esgvoc config set universe:branch=esgvoc_dev
-esgvoc config add cordex-cmip6
-esgvoc install
+<p>If you have an old version of <code>esgvoc</code>, you should upgrade it:</p>
+<pre><code class="language-bash">pip install esgvoc --upgrade
 </code></pre>
-<blockquote>
-<p>💡 <strong>Note</strong>: If you encounter a <code>[Errno 2] No such file or directory</code> error related to a missing file like <code>sfcwind.json</code> after running <code>esgvoc install</code>, simply run the same <code>esgvoc install</code> command again.<br />
-This issue is usually resolved on the second attempt as it may result from a temporary initialization glitch.</p>
-</blockquote>
+<p>Then, use the commands below to activate the project you want:</p>
+<pre><code class="language-bash">esgvoc use project@latest universe@latest
+</code></pre>
+<p>for example for CMIP6 :</p>
+<pre><code class="language-bash">esgvoc use cmip6@latest universe@latest
+</code></pre>
+<p>The projects currently available are:</p>
+<pre><code class="language-bash">cmip6, cmip6plus, cmip7, cordex-cmip5, cordex-cmip6, emd, 
+input4mips, obs4ref
+</code></pre>
+<h2 id="usage">Usage</h2>
 <h2 id="verify-the-installation">Verify the installation:</h2>
 <p>For <strong>cc-plugin-wcrp</strong> :</p>
 <pre><code class="language-bash">compliance-checker -l
