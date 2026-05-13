@@ -5,7 +5,7 @@
 [global.attributes.activity_id]
 # Checks ATTR001 ATTR002 ATTR003 ATTR004
 severity = "H"
-value_type = "str"
+value_type = "str_array"
 is_required = true
 cv_source_collection = "activity_id"
 

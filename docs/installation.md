@@ -41,15 +41,26 @@ pip install -e .
 ```
 **Esgvoc Installation**
 
-Install Esgvoc and Universe to get the Controlled Vocabulary (Mandatory)
-
+If you have an old version of `esgvoc`, you should upgrade it:
 ```bash
-esgvoc config set universe:branch=esgvoc_dev
-esgvoc config add cordex-cmip6
-esgvoc install
+pip install esgvoc --upgrade
 ```
-> 💡 **Note**: If you encounter a `[Errno 2] No such file or directory` error related to a missing file like `sfcwind.json` after running `esgvoc install`, simply run the same `esgvoc install` command again.  
-> This issue is usually resolved on the second attempt as it may result from a temporary initialization glitch.
+Then, use the commands below to activate the project you want:
+```bash
+esgvoc use project@latest universe@latest
+```
+for example for CMIP6 :
+```bash
+esgvoc use cmip6@latest universe@latest
+```
+The projects currently available are:
+```bash
+cmip6, cmip6plus, cmip7, cordex-cmip5, cordex-cmip6, emd, 
+input4mips, obs4ref
+```
+
+## Usage
+
 
 ## Verify the installation:
 For **cc-plugin-wcrp** :

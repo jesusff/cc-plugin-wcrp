@@ -9,48 +9,50 @@ This [**IOOS/compliance-checker**](https://github.com/ioos/compliance-checker) p
 ### Pip
 To install IOOS compliance-checker and the wcrp plugins :
 ```shell
-$ pip install cc-plugin-wcrp
+pip install cc-plugin-wcrp
 ```
 See the [**IOOS/compliance-checker**](https://github.com/ioos/compliance-checker#installation) for additional Installation notes.
 
-And then install Esgvoc and the other projects to get the Controlled Vocabulary :
-
+If you have an old version of `esgvoc`, you should upgrade it:
 ```shell
-$ esgvoc config add cordex-cmip6
-$ esgvoc config add cmip7
-$ esgvoc install
+pip install esgvoc --upgrade
 ```
-You should verify with `esgvoc config show` that all projects are on the `esgvoc` branch.
+Then, use the commands below to activate the project you want:
+```shell
+esgvoc use project@latest universe@latest
+```
+for example for CMIP6 :
+```shell
+esgvoc use cmip6@latest universe@latest
+```
+The projects currently available are:
+```shell
+cmip6, cmip6plus, cmip7, cordex-cmip5, cordex-cmip6, emd, 
+input4mips, obs4ref
+```
 
-If not, run:
-```bash
-esgvoc config set project:branch=esgvoc 
-esgvoc install
-```
 ## Usage
 
 ```shell
-$ compliance-checker -l
+compliance-checker -l
 ```
 This command displays the checkers already present on the iOS compliance checker in addition to the recently installed WCRP plugins :
  ```shell
-  ...
   - wcrp_cmip6 (x.x.x)
   - wcrp_cordex_cmip6 (x.x.x)
-  ...
 ``` 
 To run the plugins on IOOS CC, use the following command:
 ```shell
-$ compliance-checker -t ''plugin'' path/to/data/file.nc
+compliance-checker -t ''plugin'' path/to/data/file.nc
 ```
 Example for WCRP CMIP6 plugin :
 ```shell
-$ compliance-checker -t wcrp_cmip6:1.0  path/to/data/CMIP6/CMIP/IPSL/IPSL-CM5A2-INCA/historical/r1i1p1f1/Amon/pr/gr/v20240619/pr_Amon_IPSL-CM5A2-INCA_historical_r1i1p1f1_gr_185001-201412.nc
+compliance-checker -t wcrp_cmip6:1.0  path/to/data/CMIP6/CMIP/IPSL/IPSL-CM5A2-INCA/historical/r1i1p1f1/Amon/pr/gr/v20240619/pr_Amon_IPSL-CM5A2-INCA_historical_r1i1p1f1_gr_185001-201412.nc
 ```
 
 By default, the output is in plain text, but you can specify other formats with the -f option :
 ```shell
-$ compliance-checker -t ''plugin'' path/to/data/file.nc -f json
-$ compliance-checker -t ''plugin'' path/to/data/file.nc -f html
+compliance-checker -t ''plugin'' path/to/data/file.nc -f json
+compliance-checker -t ''plugin'' path/to/data/file.nc -f html
 ``` 
 
