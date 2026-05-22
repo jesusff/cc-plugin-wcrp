@@ -55,8 +55,8 @@ esgvoc use cmip6@latest universe@latest
 ```
 The projects currently available  in both 'cc_plugin_wcrp' and 'esgvoc' are:
 ```bash
-cmip6, cmip6plus, cmip7, cordex-cmip5, cordex-cmip6, emd, 
-input4mips, obs4ref
+cmip6, cmip6plus, cmip7 and cordex-cmip6 
+
 ```
 
 ## Usage

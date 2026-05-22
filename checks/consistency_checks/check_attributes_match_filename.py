@@ -4,7 +4,7 @@ import os
 
 from compliance_checker.base import TestCtx
 
-from checks.utils import _parse_filename_components
+from checks.utils import _parse_filename_components, resolve_member_id
 
 # CMIP6
 _FILENAME_KEYS_CMIP6_PARSE = [
@@ -164,8 +164,8 @@ def check_filename_vs_global_attrs(
             )
             return [ctx.to_result()]
         compare_keys = _FILENAME_KEYS_CORDEX_CMIP6_COMPARE
-    # ---------------- CMIP6 ----------------
-    elif project_id == "cmip6":
+    # ---------------- CMIP6 / CMIP6Plus ----------------
+    elif project_id in ("cmip6", "cmip6plus"):
         parse_keys = filename_template_keys or _FILENAME_KEYS_CMIP6_PARSE
         facets = _parse_filename_components(filename, parse_keys)
         facets = _unwrap_facets(facets)  # <-- FIX: tuple -> dict
@@ -183,8 +183,25 @@ def check_filename_vs_global_attrs(
         return [ctx.to_result()]
 
     # ---------------- Compare tokens to global attributes ----------------
+    # For CMIP6 / CMIP6Plus, the filename token at the "variant_label"
+    # position is actually the DRS member_id: when a sub-experiment is
+    # present it is "<sub_experiment_id>-<variant_label>" (e.g.
+    # "f2023-r2i1p1f3"), otherwise just "<variant_label>". Compare the
+    # token against the resolved member_id rather than variant_label alone.
+    member_id_projects = ("cmip6", "cmip6plus")
     failures = []
     for key in compare_keys:
+        if key == "variant_label" and project_id in member_id_projects:
+            file_value = str(facets.get(key))
+            expected = resolve_member_id(ds)
+            if file_value != expected:
+                failures.append(
+                    f"Filename component 'member_id' ('{file_value}') does not match "
+                    f"expected member_id ('{expected}') derived from global attributes "
+                    f"sub_experiment_id + variant_label."
+                )
+            continue
+
         if key in ds.ncattrs():
             attr_value = str(ds.getncattr(key))
             file_value = str(facets.get(key))

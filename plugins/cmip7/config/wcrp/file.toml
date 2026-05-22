@@ -14,3 +14,7 @@ allowed_data_models = ["NETCDF4_CLASSIC", "NETCDF4"]
 #severity = "H"
 #expected_complevel = 1
 #expected_shuffle = true
+
+[file.internal_packing]
+# Check FILE004
+severity = "H"

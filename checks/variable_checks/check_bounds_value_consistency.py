@@ -31,9 +31,11 @@ def check_bounds_value_consistency(ds, var_name, severity=BaseCheck.MEDIUM):
         return []
 
     bnds_var = ds.variables[bnds_name]
+    # Skip silently when bounds are not interval-shaped (n, 2).
+    # Polygon-vertex or multi-D bounds have no min/max interval to compare
+    # values against. Their shape is validated separately by [VAR004].
     if bnds_var.ndim != 2 or bnds_var.shape[1] != 2:
-        ctx.add_failure(f"Skipping bounds check for '{var_name}' — non-interval bounds (e.g., polygon vertices).")
-        return [ctx.to_result()]
+        return []
 
     try:
         values = var[:].compressed() if hasattr(var[:], "compressed") else var[:]

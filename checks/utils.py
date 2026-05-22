@@ -472,3 +472,41 @@ def crosses_anti_meridian(lon, intv=5.0):
         np.any((lon360 > 180 - intv) & (lon360 < 180))
         and np.any((lon360 > 180) & (lon360 < 180 + intv))
     )
+
+
+def resolve_member_id(ds):
+    """
+    Compute the CMIP DRS `member_id` from global attributes.
+
+    Per the CMIP6 / CMIP6Plus DRS specification, the member token used in
+    both the filename and the directory path is:
+
+        member_id = <sub_experiment_id>-<variant_label>   if sub_experiment_id
+                                                            is set and not "none"
+        member_id = <variant_label>                       otherwise
+
+    The DRS templates label this position "variant_label", but a file that
+    belongs to a sub-experiment carries the composite token there
+    (e.g. "s1960-r1i1p1f2", "f2023-r2i1p1f3").
+
+    Parameters
+    ----------
+    ds : netCDF4.Dataset
+
+    Returns
+    -------
+    str
+        The expected member_id token. Falls back to variant_label alone if
+        sub_experiment_id is absent, empty, or "none".
+    """
+    variant = ""
+    if "variant_label" in ds.ncattrs():
+        variant = str(ds.getncattr("variant_label"))
+
+    sub_exp = ""
+    if "sub_experiment_id" in ds.ncattrs():
+        sub_exp = str(ds.getncattr("sub_experiment_id")).strip()
+
+    if sub_exp and sub_exp.lower() != "none":
+        return f"{sub_exp}-{variant}"
+    return variant

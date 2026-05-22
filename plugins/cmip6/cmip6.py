@@ -62,7 +62,7 @@ from checks.dimension_checks.check_dimension_positive import check_dimension_pos
 from checks.time_checks.check_time_squareness import check_time_squareness
 import checks.time_checks.check_time_squareness as time_squareness_mod  
 from checks.time_checks.check_time_bounds import check_time_bounds
-
+from checks.time_checks.check_time_calendar import check_calendar_recommendation
 from checks.variable_checks.check_coordinate_monotonicity import (
     check_coordinate_monotonicity,
 )
@@ -77,6 +77,13 @@ try:
     )
 except Exception:
     check_bounds_value_consistency = None
+
+try:
+    from checks.variable_checks.check_bounds_shape import (
+        check_bounds_shape,
+    )
+except Exception:
+    check_bounds_shape = None
 
 
 # --- CF Checker helpers ---
@@ -240,16 +247,43 @@ class Cmip6ProjectCheck(WCRPBaseCheck):
             ctx.add_failure(f"Error detecting geophysical variables: {e}")
             return None, [ctx.to_result()]
 
-        if len(geo_vars) != 1:
-            ctx = TestCtx(severity, "Geophysical Variable Detection")
-            ctx.add_failure(
-                f"Expected exactly 1 geophysical variable, found {len(geo_vars)}: {geo_vars}"
-            )
+        if len(geo_vars) == 1:
+            self._geo_var_cache = geo_vars[0]
+            return self._geo_var_cache, res
+
+        ctx = TestCtx(severity, "Geophysical Variable Detection")
+
+        if len(geo_vars) == 0:
+            ctx.add_failure("No geophysical variable detected in the file.")
             res.append(ctx.to_result())
             return None, res
 
-        self._geo_var_cache = geo_vars[0]
-        return self._geo_var_cache, res
+        # CF detection is ambiguous (multiple candidates). Disambiguate
+        # using the global attribute variable_id, which by CMIP definition
+        # designates the single geophysical variable of the file. This
+        # resolves false positives where cell measures (area, areacella,
+        # areacello, volcello...) are also flagged as geophysical.
+        vid = getattr(ds, "variable_id", None)
+        vid = str(vid) if vid else None
+
+        if vid and vid in geo_vars:
+            self._geo_var_cache = vid
+            return vid, res
+
+        if vid:
+            ctx.add_failure(
+                f"Expected exactly 1 geophysical variable, found {len(geo_vars)}: "
+                f"{geo_vars}. Global attribute variable_id='{vid}' is not among "
+                f"the detected candidates."
+            )
+        else:
+            ctx.add_failure(
+                f"Expected exactly 1 geophysical variable, found {len(geo_vars)}: "
+                f"{geo_vars}. No variable_id global attribute available to "
+                f"disambiguate."
+            )
+        res.append(ctx.to_result())
+        return None, res
 
     # -------------------------------------------------------------------------
     # Variable Registry expected_term lookup (CMIP6 mapping: table_id.variable_id)
@@ -647,37 +681,11 @@ class Cmip6ProjectCheck(WCRPBaseCheck):
                 if cname not in ds.variables:
                     continue
                 cvar = ds.variables[cname]
-                bnds_name = getattr(cvar, "bounds", None)
-                if not bnds_name:
+                if not getattr(cvar, "bounds", None):
                     continue
 
-                ctx = TestCtx(sev, f"[VAR004] Bounds for '{cname}'")
-                if bnds_name not in ds.variables:
-                    ctx.add_failure(
-                        f"Bounds variable '{bnds_name}' referenced by '{cname}' not found."
-                    )
-                    res.append(ctx.to_result())
-                    continue
-
-                bvar = ds.variables[bnds_name]
-                try:
-                    n = cvar.shape[0] if len(cvar.shape) > 0 else None
-                    ok_shape = (
-                        bvar.ndim == 2
-                        and bvar.shape[1] == 2
-                        and (n is None or bvar.shape[0] == n)
-                    )
-                except Exception:
-                    ok_shape = False
-
-                if ok_shape:
-                    ctx.add_pass()
-                else:
-                    ctx.add_failure(
-                        f"'{bnds_name}' must have shape (n, 2) with n == len({cname}). "
-                        f"Found {getattr(bvar, 'shape', None)}."
-                    )
-                res.append(ctx.to_result())
+                if check_bounds_shape is not None:
+                    res.extend(check_bounds_shape(ds, cname, severity=sev))
 
                 if check_bounds_value_consistency is not None:
                     res.extend(check_bounds_value_consistency(ds, cname, severity=sev))
@@ -743,6 +751,11 @@ class Cmip6ProjectCheck(WCRPBaseCheck):
                 sev = _sev(rule.coverage.severity, default=BaseCheck.MEDIUM)
                 res.extend(check_time_bounds(ds, severity=sev))
 
+            #time calendar recommendation (TIME003a)
+            if getattr(rule, "calendar_recommendation", None):
+                sev = _sev(rule.calendar_recommendation.severity, default=BaseCheck.MEDIUM)
+                res.extend(check_calendar_recommendation(ds, severity=sev))
+
             # coordinate variable attributes
             for attr_key, arule in (getattr(rule, "attributes", None) or {}).items():
                 sev = _sev(arule.severity, default=BaseCheck.MEDIUM)
@@ -775,23 +788,3 @@ class Cmip6ProjectCheck(WCRPBaseCheck):
 
         return res
     
-    def check_time_calendar_recommendation(self, ds):
-        time_var = ds.variables.get("time")
-        if time_var is None:
-            return []
-
-        calendar = getattr(time_var, "calendar", None)
-        if calendar is None:
-            return []
-
-        calendar_value = str(calendar).strip().lower()
-
-        if calendar_value == "standard":
-            ctx = TestCtx(BaseCheck.MEDIUM, "[TIME003a] Recommended calendar for time coordinate")
-            ctx.add_failure(
-                "Variable 'time' has calendar='standard'. "
-                "'proleptic_gregorian' is recommended instead."
-            )
-            return [ctx.to_result()]
-
-        return []

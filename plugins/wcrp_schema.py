@@ -124,6 +124,11 @@ class FileSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
     format: Optional[FileFormatRule] = None
     compression: Optional[FileCompressionRule] = None
+    internal_packing: Optional[FileInternalPackingRule] = None
+
+class FileInternalPackingRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    severity: Optional[str] = None
 
 
 # =============================================================================
@@ -228,6 +233,9 @@ class TimeCoverageRule(BaseModel):
     model_config = ConfigDict(extra="forbid")
     severity: Optional[str] = None
 
+class CalendarRecommendationRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    severity: Optional[str] = None
 
 class CoordinateVariableConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -238,7 +246,7 @@ class CoordinateVariableConfig(BaseModel):
     monotonicity: Optional[MonotonicityRule] = None
     squareness: Optional[TimeSquarenessRule] = None
     coverage: Optional[TimeCoverageRule] = None
-
+    calendar_recommendation: Optional[CalendarRecommendationRule] = None
     attributes: Dict[str, AttributeRule] = Field(default_factory=dict)
 
 

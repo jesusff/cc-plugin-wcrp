@@ -3,7 +3,7 @@
 import os
 from compliance_checker.base import TestCtx
 
-from checks.utils import _get_drs_facets
+from checks.utils import _get_drs_facets, resolve_member_id
 
 def _unwrap_facets(x):
 
@@ -11,6 +11,22 @@ def _unwrap_facets(x):
         return x[0]
     return x
 
+def _normalize_drs_global_attr_for_path_compare(attr_name: str, value) -> str:
+    """
+    Normalize global attribute values before comparing them with DRS path components.
+
+    activity_id may contain several space-separated activities, e.g.
+    "ScenarioMIP AerChemMIP", while the DRS path contains only the first one:
+    "ScenarioMIP".
+    """
+    text = str(value).strip()
+
+    if attr_name == "activity_id":
+        parts = text.split()
+        if parts:
+            return parts[0]
+
+    return text
 _dir_template_keys_cmip6 = [
     "mip_era", "activity_id", "institution_id", "source_id", "experiment_id",
     "variant_label", "table_id", "variable_id", "grid_label", "version",
@@ -115,19 +131,36 @@ def check_attributes_match_directory_structure(
 
         skip_keys = {"version"}
 
+    # For CMIP6 / CMIP6Plus, the directory segment at the "variant_label"
+    # position is the DRS member_id: "<sub_experiment_id>-<variant_label>"
+    # when a sub-experiment is present, otherwise just "<variant_label>".
+    member_id_projects = ("cmip6", "cmip6plus")
     failures = []
     for key, drs_value in dir_facets.items():
         if key in skip_keys:
             continue
 
-        if key in ds.ncattrs():
-            attr_value = str(ds.getncattr(key))
-            if str(drs_value) != attr_value:
+        if key == "variant_label" and project_id in member_id_projects:
+            expected = resolve_member_id(ds)
+            if str(drs_value) != expected:
                 failures.append(
-                    f"DRS path component '{key}' ('{drs_value}') does not match global attribute ('{attr_value}')."
+                    f"DRS path component 'member_id' ('{drs_value}') does not match "
+                    f"expected member_id ('{expected}') derived from global attributes "
+                    f"sub_experiment_id + variant_label."
                 )
+            continue
+
+        if key in ds.ncattrs():
+            raw_attr_value = ds.getncattr(key)
+            attr_value = _normalize_drs_global_attr_for_path_compare(key, raw_attr_value)
+
+            if str(drs_value) != attr_value:
+              failures.append(
+                 f"DRS path component '{key}' ('{drs_value}') does not match "
+                 f"global attribute '{key}' ('{raw_attr_value}'; compared as '{attr_value}')."
+        )
         else:
-            ctx.messages.append(f"Global attribute '{key}' not found, skipping comparison.")
+             ctx.messages.append(f"Global attribute '{key}' not found, skipping comparison.")
 
     for f in failures:
         ctx.add_failure(f)

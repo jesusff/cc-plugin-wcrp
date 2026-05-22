@@ -282,6 +282,9 @@ ref_increment = ""
 # Checks TIME002
 severity = "H"
 
+[coordinates.time.calendar_recommendation]  
+# Checks TIME003a
+severity = "M"
 # ==============================================================================
 # == Metadata checks applied to depth coordinate
 # ==============================================================================
