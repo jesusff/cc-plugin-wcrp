@@ -218,7 +218,7 @@ severity = "M"
 value_type = "str"
 is_required = false
 na_value = "none"
-cv_source_collection = "experiment_id"
+cv_source_collection = "sub_experiment_id"
 
 [global.attributes.sub_experiment]
 # Checks ATTR001 ATTR002 ATTR003 ATTR004
@@ -226,7 +226,7 @@ severity = "M"
 value_type = "str"
 is_required = false
 na_value = "none"
-cv_source_collection = "experiment_id"
+cv_source_collection = "sub_experiment_id"
 cv_source_collection_key = "description"
 
 [global.attributes.parent_activity_id]
