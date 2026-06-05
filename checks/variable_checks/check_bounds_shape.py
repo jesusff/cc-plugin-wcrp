@@ -61,13 +61,19 @@ def check_bounds_shape(ds, var_name, severity=BaseCheck.MEDIUM):
         cshape = tuple(cvar.shape)
         bshape = tuple(bvar.shape)
         if cvar.ndim == 1:
-            # CF §7.1: 1-D coord of length N -> bounds (N, 2)
+            # CF §7.1: 1-D coord of length N. Two shapes are valid:
+            #   - interval bounds (N, 2)
+            #   - polygon-vertex bounds (N, m) with m >= 3, for unstructured
+            #     grids (FESOM2, ICON, MPAS, ...) where each cell is a polygon
+            #     attached to a 1-D coordinate.
             ok_shape = (
                 bvar.ndim == 2
                 and bshape[0] == cshape[0]
-                and bshape[1] == 2
+                and bshape[1] >= 2
             )
-            expected_desc = f"(n, 2) with n == len({var_name})={cshape[0]}"
+            expected_desc = (
+                f"(n, 2) or (n, m) with m >= 3 and n == len({var_name})={cshape[0]}"
+            )
         elif cvar.ndim >= 2:
             # CF §7.1: multi-D coord (curvilinear, unstructured...)
             # bounds shape is (*coord.shape, nv), nv >= 3
