@@ -61,19 +61,46 @@ def check_bounds_shape(ds, var_name, severity=BaseCheck.MEDIUM):
         cshape = tuple(cvar.shape)
         bshape = tuple(bvar.shape)
         if cvar.ndim == 1:
-            # CF §7.1: 1-D coord of length N. Two shapes are valid:
-            #   - interval bounds (N, 2)
-            #   - polygon-vertex bounds (N, m) with m >= 3, for unstructured
-            #     grids (FESOM2, ICON, MPAS, ...) where each cell is a polygon
-            #     attached to a 1-D coordinate.
-            ok_shape = (
-                bvar.ndim == 2
-                and bshape[0] == cshape[0]
-                and bshape[1] >= 2
+            # CF §7.1: 1-D coord of length N.
+            # Two valid layouts depending on grid topology:
+            #   - regular grid coord on its own dimension (e.g. lat(lat)):
+            #     bounds (N, 2) interval form only.
+            #   - unstructured / generic-cell coord (e.g. lat(ncell) and
+            #     lon(ncell) sharing the same cell dimension): bounds (N, m)
+            #     with m >= 2 (interval) or m >= 3 (polygon vertices).
+            #
+            # The distinguisher is whether another 1-D coord variable lives
+            # on the same dimension and also declares bounds. If yes, this
+            # is unstructured topology. If no, treat as a classic 1-D coord
+            # on its own dimension and require interval bounds.
+            cdim = cvar.dimensions[0]
+            sibling_has_bounds = any(
+                vname != var_name
+                and v.ndim == 1
+                and v.dimensions == (cdim,)
+                and getattr(v, "bounds", None)
+                for vname, v in ds.variables.items()
             )
-            expected_desc = (
-                f"(n, 2) or (n, m) with m >= 3 and n == len({var_name})={cshape[0]}"
-            )
+            if sibling_has_bounds:
+                ok_shape = (
+                    bvar.ndim == 2
+                    and bshape[0] == cshape[0]
+                    and bshape[1] >= 2
+                )
+                expected_desc = (
+                    f"(n, 2) or (n, m) with m >= 3 and n == len({var_name})={cshape[0]} "
+                    f"(unstructured 1-D coord on shared dimension '{cdim}')"
+                )
+            else:
+                ok_shape = (
+                    bvar.ndim == 2
+                    and bshape[0] == cshape[0]
+                    and bshape[1] == 2
+                )
+                expected_desc = (
+                    f"(n, 2) with n == len({var_name})={cshape[0]} "
+                    f"(regular 1-D coord on its own dimension '{cdim}')"
+                )
         elif cvar.ndim >= 2:
             # CF §7.1: multi-D coord (curvilinear, unstructured...)
             # bounds shape is (*coord.shape, nv), nv >= 3
