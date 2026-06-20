@@ -3,7 +3,16 @@
 
 
 # nctime.utils.constants.AVERAGE_CORRECTION_FREQ
-AVERAGE_CORRECTION_FREQ = ["day", "mon", "monPt", "yr", "yrPt", "1hrCM", "sem"]
+# Frequencies whose time stamps follow the midpoint convention when
+# cell_methods carries "time: mean". Sub-daily tavg frequencies
+# (1hr / 3hr / 6hr) belong here too: CMIP6 archives (e.g. CESM2 E1hr)
+# ship time at HH:30 with bnds spanning the full hour, and CMIP7 tpt
+# files retain "time: point" in cell_methods so _is_instantaneous still
+# resolves them to use_midpoint=False without needing a Pt suffix.
+AVERAGE_CORRECTION_FREQ = [
+    "day", "mon", "monPt", "yr", "yrPt", "1hrCM", "sem",
+    "1hr", "3hr", "6hr",
+]
 
 
 # (table_id, frequency) -> (value, unit)
