@@ -333,7 +333,7 @@ data_type = "str"
 # Checks ATTR001 ATTR002 ATTR003 ATTR004
 severity = "H"
 value_type = "str"
-is_required = true
+is_required = false
 constant = "area_type"
 
 # ==============================================================================

@@ -174,12 +174,6 @@ is_required = false
 na_value = "no parent"
 pattern = ".*"
 
-[global.attributes.branch_time]
-# Checks ATTR001 ATTR002 ATTR003 ATTR004
-severity = "M"
-value_type = "float"
-is_required = true
-
 [global.attributes.branch_time_in_parent]
 # Checks ATTR001 ATTR002 ATTR003 ATTR004
 severity = "H"

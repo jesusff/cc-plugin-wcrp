@@ -1,159 +1,233 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+[TIME003] Check that the dataset time axis matches the time range declared in the
+filename.
+
+Time-range token detection is delegated to esgvoc's DRS validator rather than a
+hard-coded date-format regex. esgvoc knows, per project and per frequency, which
+time-range layouts are valid (YYYY, YYYYMM, YYYYMMDD, YYYYMMDDHH, YYYYMMDDHHMM,
+YYYYMMDDHHMMSS). This removes false positives such as "No time range token found"
+on sub-daily files (e.g. 6hr IPSL output with a 12-digit YYYYMMDDHHMM token).
+
+If esgvoc (or the project vocabulary) is unavailable, the check falls back to a
+relaxed structural parse that accepts any even-length date token from 4 to 14
+digits, so it never regresses to the old 6/8-digit-only behaviour.
+"""
 
 import os
 import re
+
 from compliance_checker.base import BaseCheck, TestCtx
 from netCDF4 import num2date
 
+# -----------------------------------------------------------------------------
+# Optional esgvoc DRS validator
+# -----------------------------------------------------------------------------
+try:
+    from esgvoc.apps.drs.validator import DrsValidator
+    _ESGVOC_AVAILABLE = True
+except Exception:
+    DrsValidator = None
+    _ESGVOC_AVAILABLE = False
 
-_TIME_RANGE_RE = re.compile(r"^(?P<start>\d{6}|\d{8})-(?P<end>\d{6}|\d{8})$")
+# Cache of DrsValidator instances per project_id (build is relatively expensive)
+_VALIDATOR_CACHE: dict = {}
+
+# Relaxed fallback: a time-range token is two even-length digit runs (4..14)
+# separated by a hyphen. esgvoc is the authority; this is only a safety net.
+_FALLBACK_TOKEN_RE = re.compile(r"^(?P<start>\d{4,14})-(?P<end>\d{4,14})$")
 
 
-def _extract_time_range_from_filename(filename: str):
+def _project_id_from_ds(ds):
+    """Resolve esgvoc project id ('cmip6'/'cmip7'/...) from global attributes."""
+    try:
+        mip_era = str(ds.getncattr("mip_era")).strip().lower()
+        if mip_era in ("cmip6", "cmip7"):
+            return mip_era
+    except AttributeError:
+        pass
+    try:
+        proj = str(ds.getncattr("project_id")).strip().lower()
+        if proj:
+            return proj
+    except AttributeError:
+        pass
+    return None
+
+
+def _get_validator(project_id):
+    """Return a cached DrsValidator for the project, or None if unavailable."""
+    if not _ESGVOC_AVAILABLE or not project_id:
+        return None
+    if project_id in _VALIDATOR_CACHE:
+        return _VALIDATOR_CACHE[project_id]
+    try:
+        v = DrsValidator(project_id=project_id)
+    except Exception:
+        v = None
+    _VALIDATOR_CACHE[project_id] = v
+    return v
+
+
+def _esgvoc_filename_ok(ds, filename_no_ext):
     """
-    Extract time range token from filename.
-    Works for CMIP6 and CMIP7:
-      ..._YYYYMM-YYYYMM.nc
-      ..._YYYYMMDD-YYYYMMDD.nc
-    Returns (start_str, end_str, use_day) or (None, None, None) if not found.
+    Ask esgvoc whether the filename is a structurally valid DRS expression.
+
+    Returns True (valid), False (structural error), or None (esgvoc unavailable).
+    """
+    project_id = _project_id_from_ds(ds)
+    validator = _get_validator(project_id)
+    if validator is None:
+        return None
+    try:
+        report = validator.validate_file_name(filename_no_ext + ".nc")
+    except Exception:
+        return None
+    errors = getattr(report, "errors", None)
+    return not errors
+
+
+def _extract_time_range_token(filename):
+    """
+    Return (start_str, end_str) of the time-range token, or (None, None).
+    The token is the last underscore-separated segment of the stem; any
+    even-length digit run from 4 to 14 is accepted.
     """
     stem = filename[:-3] if filename.endswith(".nc") else filename
     last_token = stem.split("_")[-1]
-    m = _TIME_RANGE_RE.match(last_token)
+    m = _FALLBACK_TOKEN_RE.match(last_token)
     if not m:
-        return None, None, None
-
-    start_str = m.group("start")
-    end_str = m.group("end")
-    use_day = (len(start_str) == 8)
-    return start_str, end_str, use_day
+        return None, None
+    return m.group("start"), m.group("end")
 
 
-def _tuple_from_datestr(s: str):
-    """YYYYMM or YYYYMMDD -> tuple comparable."""
-    if len(s) == 8:
-        return (int(s[:4]), int(s[4:6]), int(s[6:8]))
-    if len(s) == 6:
-        return (int(s[:4]), int(s[4:6]))
-    raise ValueError(f"Unrecognized time range token: {s}")
+def _fields_from_datestr(s):
+    """
+    Parse a CMIP date token into integer fields, variable length:
+      YYYY .. YYYYMMDDHHMMSS -> (Y,) .. (Y,M,D,H,Min,S)
+    """
+    n = len(s)
+    if n not in (4, 6, 8, 10, 12, 14):
+        raise ValueError(f"Unrecognized time range token length: '{s}'")
+    fields = [int(s[0:4])]
+    for start in range(4, n, 2):
+        fields.append(int(s[start:start + 2]))
+    return tuple(fields)
 
 
 def _coverage_from_time(ds):
     """
-    Prefer bounds if available:
-      time:bounds="time_bnds" and time_bnds(time, bnds)
-    Returns (start_tuple, end_tuple, use_day) where use_day indicates day precision.
+    Return data coverage as full-precision tuples (Y, M, D, H, Min, S) + error.
+    Uses bounds when available (start = bvals[0,0], end = bvals[-1,0]),
+    otherwise falls back to time midpoints.
     """
     if "time" not in ds.variables:
-        return None, None, None, "Missing 'time' variable."
+        return None, None, "Missing 'time' variable."
 
     tvar = ds.variables["time"]
 
-    # If bounds exist, use them (more accurate than midpoints)
+    def _full_tuple(dt):
+        return (dt.year, dt.month, dt.day,
+                getattr(dt, "hour", 0), getattr(dt, "minute", 0),
+                getattr(dt, "second", 0))
+
     bname = getattr(tvar, "bounds", None)
     if bname and bname in ds.variables:
         bvar = ds.variables[bname]
         try:
             units = tvar.units
             calendar = getattr(tvar, "calendar", "standard")
-
             bvals = bvar[:]
-            # expected shape (n,2)
             start_val = bvals[0, 0]
-            end_val = bvals[-1, 1]
-
+            end_val = bvals[-1, 0]
             start_dt = num2date(start_val, units=units, calendar=calendar)
             end_dt = num2date(end_val, units=units, calendar=calendar)
-
-            return (start_dt.year, start_dt.month, start_dt.day), (end_dt.year, end_dt.month, end_dt.day), True, None
-        except Exception as e:
-            # fallback to time points if bounds conversion fails
+            return _full_tuple(start_dt), _full_tuple(end_dt), None
+        except Exception:
             pass
 
-    # Fallback: use time points
     try:
         tvals = tvar[:]
         if hasattr(tvals, "compressed"):
             tvals = tvals.compressed()
         if tvals.size == 0:
-            return None, None, None, "The 'time' variable is empty."
-
+            return None, None, "The 'time' variable is empty."
         units = tvar.units
         calendar = getattr(tvar, "calendar", "standard")
         dts = num2date(tvals, units=units, calendar=calendar)
-
-        first = dts[0]
-        last = dts[-1]
-        # points are often monthly midpoints; we compare month precision by default
-        return (first.year, first.month), (last.year, last.month), False, None
+        return _full_tuple(dts[0]), _full_tuple(dts[-1]), None
     except Exception as e:
-        return None, None, None, f"Error converting time values: {e}"
-
-
-# Frequencies for which no time range token is expected in the filename.
-_TIMELESS_FREQUENCIES = {"fx", "ofx"}
+        return None, None, f"Error converting time values: {e}"
 
 
 def check_time_range_vs_filename(ds, severity=BaseCheck.MEDIUM):
     """
-    [TIME003] Check that the dataset time axis covers the time range declared in the filename.
-
-    Files with frequency 'fx' or 'ofx' are time-invariant: no time range token is expected
-    in their filename, and this check is skipped with a pass.
-    For all other frequencies, the absence of a time range token in the filename is itself
-    an error (the file is mis-named).
+    [TIME003] Compare the filename time range with the actual data coverage.
+    Both directions are checked (data too short AND data extending beyond).
     """
     check_id = "TIME003"
     ctx = TestCtx(severity, f"[{check_id}] Check Time Range vs Filename")
 
-    # Read frequency from global attributes
-    frequency = getattr(ds, "frequency", None)
+    # Timeless frequencies (fx, fixed fields) have no time axis and no time-range
+    # token in the filename. Skip cleanly, independently of esgvoc availability.
+    try:
+        freq = str(ds.getncattr("frequency")).strip()
+    except AttributeError:
+        freq = ""
+    if freq == "fx" or "time" not in ds.variables:
+        ctx.add_pass()
+        return [ctx.to_result()]
 
     filename = os.path.basename(ds.filepath())
-    start_str, end_str, use_day_from_name = _extract_time_range_from_filename(filename)
+    stem = filename[:-3] if filename.endswith(".nc") else filename
 
-    if not start_str or not end_str:
-        # No time range token found in filename.
-        if frequency in _TIMELESS_FREQUENCIES:
-            # Expected for fx/ofx — not a failure.
+    # 1) Delegate structural validation (incl. time-range part) to esgvoc.
+    esgvoc_ok = _esgvoc_filename_ok(ds, stem)
+
+    # 2) Extract the actual token (last segment) for the numeric comparison.
+    start_str, end_str = _extract_time_range_token(filename)
+
+    if start_str is None:
+        if esgvoc_ok is True:
+            # Valid filename with no time-range segment (e.g. fx) -> nothing to compare.
             ctx.add_pass()
-        elif frequency is None:
-            # Cannot determine if time range is required without knowing frequency.
-            ctx.add_failure(
-                "No time range token found in filename and 'frequency' global attribute is missing; "
-                "cannot determine whether a time range is required."
-            )
-        else:
-            # Any other frequency should have a time range token — this is a real error.
-            ctx.add_failure(
-                f"No time range token found in filename, but frequency='{frequency}' "
-                "requires a time range (e.g. '_YYYYMM-YYYYMM.nc' or '_YYYYMMDD-YYYYMMDD.nc')."
-            )
+            return [ctx.to_result()]
+        ctx.add_failure(
+            "No time range token found at the end of the filename "
+            "(expected a trailing '_<start>-<end>' segment)."
+        )
         return [ctx.to_result()]
 
     try:
-        expected_start = _tuple_from_datestr(start_str)
-        expected_end = _tuple_from_datestr(end_str)
+        expected_start = _fields_from_datestr(start_str)
+        expected_end = _fields_from_datestr(end_str)
     except Exception as e:
         ctx.add_failure(f"Error parsing time range from filename: {e}")
         return [ctx.to_result()]
 
-    cov_start, cov_end, cov_use_day, err = _coverage_from_time(ds)
+    cov_start_full, cov_end_full, err = _coverage_from_time(ds)
     if err:
         ctx.add_failure(err)
         return [ctx.to_result()]
 
-    # Compare at month precision if filename is YYYYMM-YYYYMM
-    if not use_day_from_name:
-        # normalize coverage to (Y,M)
-        cov_start = (cov_start[0], cov_start[1])
-        cov_end = (cov_end[0], cov_end[1])
+    # Compare at the precision of the filename token.
+    cov_start = cov_start_full[:len(expected_start)]
+    cov_end = cov_end_full[:len(expected_end)]
 
-    # Fail if dataset starts after expected start OR ends before expected end
-    if cov_start > expected_start or cov_end < expected_end:
-        ctx.add_failure(
-            f"Time coverage [{cov_start} - {cov_end}] does not fully cover filename range [{start_str} - {end_str}]."
-        )
+    issues = []
+    if cov_start > expected_start:
+        issues.append(f"Data starts at {cov_start}, later than filename start {start_str}.")
+    elif cov_start < expected_start:
+        issues.append(f"Data starts at {cov_start}, earlier than filename start {start_str}.")
+    if cov_end < expected_end:
+        issues.append(f"Data ends at {cov_end}, earlier than filename end {end_str}.")
+    elif cov_end > expected_end:
+        issues.append(f"Data ends at {cov_end}, later than filename end {end_str}.")
+
+    if issues:
+        for msg in issues:
+            ctx.add_failure(msg)
     else:
         ctx.add_pass()
 
