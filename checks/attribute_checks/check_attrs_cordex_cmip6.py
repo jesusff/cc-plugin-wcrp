@@ -104,6 +104,31 @@ def check_grid_mapping(CheckerObject, severity=BaseCheck.MEDIUM):
     else:
         testctx.add_pass()
 
+    # lat and lon must be present for all grid mappings. For regular
+    # latitude-longitude grids they are 1D; for all other mappings they are 2D.
+    if grid_mapping_name and grid_mapping_name in gmallowed:
+        if "lat" not in CheckerObject.xrds or "lon" not in CheckerObject.xrds:
+            testctx.add_failure(
+                f"The grid_mapping_name '{grid_mapping_name}' requires the variables"
+                " 'lat' and 'lon' to be present in the file."
+            )
+        elif grid_mapping_name == "latitude_longitude":
+            if CheckerObject.xrds["lat"].ndim != 1 or CheckerObject.xrds["lon"].ndim != 1:
+                testctx.add_failure(
+                    "The grid_mapping_name 'latitude_longitude' requires the variables"
+                    " 'lat' and 'lon' to be 1D."
+                )
+            else:
+                testctx.add_pass()
+        else:
+            if CheckerObject.xrds["lat"].ndim != 2 or CheckerObject.xrds["lon"].ndim != 2:
+                testctx.add_failure(
+                    f"The grid_mapping_name '{grid_mapping_name}' requires the variables"
+                    " 'lat' and 'lon' to be 2D."
+                )
+            else:
+                testctx.add_pass()
+
     # rlat, rlon or y, x must be present in file, depending on the grid_mapping_name
     if grid_mapping_name and grid_mapping_name in gmallowed:
         if grid_mapping_name in ["lambert_conformal_conic", "mercator"]:
@@ -115,12 +140,26 @@ def check_grid_mapping(CheckerObject, severity=BaseCheck.MEDIUM):
                 )
             else:
                 testctx.add_pass()
-        else:
+        elif grid_mapping_name == "rotated_latitude_longitude":
             if "rlat" not in CheckerObject.xrds or "rlon" not in CheckerObject.xrds:
                 testctx.add_failure(
                     "The grid_mapping_name 'rotated_latitude_longitude' requires the variables"
                     " 'rlat' and 'rlon' to be present in the file defining the native"
                     " coordinate system used by the RCM."
+                )
+            else:
+                testctx.add_pass()
+        elif grid_mapping_name == "latitude_longitude":
+            if (
+                "rlat" in CheckerObject.xrds
+                or "rlon" in CheckerObject.xrds
+                or "y" in CheckerObject.xrds
+                or "x" in CheckerObject.xrds
+            ):
+                testctx.add_failure(
+                    "The grid_mapping_name 'latitude_longitude' does not require"
+                    " 'rlat', 'rlon', 'y', or 'x' coordinate variables; 'lat' and"
+                    " 'lon' are the coordinate variables in this case."
                 )
             else:
                 testctx.add_pass()

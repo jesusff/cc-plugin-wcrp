@@ -33,13 +33,35 @@ def check_lon_value_range(CheckerObject, severity=BaseCheck.MEDIUM):
         testctx.add_pass()
         return [testctx.to_result()]
 
+    grid_mapping_name = False
+    if len(CheckerObject.varname) > 0:
+        crs = getattr(
+            CheckerObject.ds.variables[CheckerObject.varname[0]], "grid_mapping", False
+        )
+        if crs:
+            grid_mapping_name = getattr(
+                CheckerObject.ds.variables[crs], "grid_mapping_name", False
+            )
+
     # Get domain_id from global attributes
     domain_id = CheckerObject._get_attr("domain_id", default="")
     if not isinstance(domain_id, str):
         domain_id = ""
 
     # Check if longitude coordinates are strictly monotonically increasing
-    if lon.ndim != 2:
+    if grid_mapping_name == "latitude_longitude":
+        if lon.ndim != 1:
+            testctx.add_failure(
+                "The longitude coordinate should have one dimension for grid_mapping_name"
+                " 'latitude_longitude'."
+            )
+        elif ((lon[1:].data - lon[:-1].data) > 0).all():
+            testctx.add_pass()
+        else:
+            testctx.add_failure(
+                "The longitude coordinate should be strictly monotonically increasing."
+            )
+    elif lon.ndim != 2:
         testctx.add_failure("The longitude coordinate should have two dimensions.")
     elif (
         domain_id.startswith("ARC")
@@ -114,6 +136,20 @@ def check_horizontal_axes_bounds(CheckerObject, severity=BaseCheck.MEDIUM):
     check_id = "CDXV002"
     desc = f"[{check_id}] Existence of horizontal axes bounds"
     testctx = TestCtx(severity, desc)
+
+    grid_mapping_name = False
+    if len(CheckerObject.varname) > 0:
+        crs = getattr(
+            CheckerObject.ds.variables[CheckerObject.varname[0]], "grid_mapping", False
+        )
+        if crs:
+            grid_mapping_name = getattr(
+                CheckerObject.ds.variables[crs], "grid_mapping_name", False
+            )
+
+    if grid_mapping_name == "latitude_longitude":
+        testctx.add_pass()
+        return [testctx.to_result()]
 
     if "X" in CheckerObject.xrds.cf.bounds and "Y" in CheckerObject.xrds.cf.bounds:
         testctx.add_pass()
