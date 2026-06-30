@@ -91,7 +91,20 @@ def check_grid_mapping(CheckerObject, severity=BaseCheck.MEDIUM):
                     f"but is of type '{CheckerObject.ds[crs].dtype} ({CheckerObject.ds[crs].dtype.kind})'."
                 )
         else:
-            if grid_mapping_optional:
+            has_1d_lat_lon = (
+                "lat" in CheckerObject.xrds
+                and "lon" in CheckerObject.xrds
+                and CheckerObject.xrds["lat"].ndim == 1
+                and CheckerObject.xrds["lon"].ndim == 1
+            )
+            if has_1d_lat_lon:
+                grid_mapping_name = "latitude_longitude"
+                testctx.add_failure(
+                    "No grid_mapping variable found. For regular latitude-longitude grids, "
+                    "it is recommended to define a grid_mapping variable with grid_mapping_name "
+                    "'latitude_longitude' to provide the Earth radius."
+                )
+            elif grid_mapping_optional:
                 testctx.add_pass()
             else:
                 testctx.add_failure(
@@ -217,18 +230,18 @@ def check_domain_id(CheckerObject, severity=BaseCheck.MEDIUM, use_esgvoc=False):
         )
         return [testctx.to_result()]
 
-    # Rectilinear case: lat and lon must be 1D
-    #  (would also be the case for unstructured grids, but those are not allowed in CORDEX-CMIP6)
-    if CheckerObject.xrds[lat].ndim == 1 and CheckerObject.xrds[lon].ndim == 1:
-        if not domain_id.endswith("i"):
+    # If the domain_id ends in "i" (interpolated grid), we expect 1D lat and lon coordinates 
+    if domain_id.endswith("i"):
+        if CheckerObject.xrds[lat].ndim != 1 or CheckerObject.xrds[lon].ndim != 1:
             testctx.add_failure(
-                "The global attribute 'domain_id' is not compliant with the archive specifications "
-                f"('domain_id' should get the suffix 'i' in case of a rectilinear grid): '{domain_id}'."
+                "The global attribute 'domain_id' indicates an interpolated grid (suffix 'i'), "
+                f"which requires 1D latitude and longitude coordinate variables. "
+                f"Found lat ndim={CheckerObject.xrds[lat].ndim}, lon ndim={CheckerObject.xrds[lon].ndim}."
             )
         else:
             testctx.add_pass()
-            domain_id = domain_id[:-1]
     else:
+        # Non-i domains are allowed to have 1D or 2D lat/lons.
         testctx.add_pass()
 
     # Do not run comparison against CV if esgvoc is used
